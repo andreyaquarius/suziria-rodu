@@ -8,6 +8,28 @@
   const modeHelp={channel_overlap:'Спільні теми не означають особисту співпрацю. Натисніть на зв’язок, щоб побачити відео з обох каналів.',channel_topic:'Які теми досліджує кожен канал? Відкрийте вузол або лінію, щоб переглянути джерела.',people:'Люди, позначені учасниками одного відео. Згадки імен самі по собі не створюють зв’язок.',people_topics:'Люди беруть участь у відео на спільні теми, але не обов’язково разом. Для кожного учасника є окремі джерела.',channel_person:'На яких каналах зустрічається людина як учасник відео. Це не означає, що вона є власником каналу.',person_topic:'Теми у відео за участі людини. Це не обов’язково її особиста теза — перевірте контекст.',topic_topic:'Теми, що зустрічаються разом в одному відео. Виберіть пару, щоб побачити ці відео.'};
   const colors=Core.graphColors;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function observeResponsiveLayout(){
+    let pending=false;
+    const update=()=>{
+      pending=false;
+      const root=document.documentElement,footer=$('.site-footer'),toolbar=$('.map-toolbar');
+      const write=(name,value)=>{const px=`${Math.ceil(value)}px`;if(root.style.getPropertyValue(name)!==px)root.style.setProperty(name,px);};
+      write('--visible-height',window.visualViewport?.height||window.innerHeight);
+      if(state.view!=='map')return;
+      const top=state.expanded?12:Math.max($('.site-header').getBoundingClientRect().bottom,$('.intro').getBoundingClientRect().bottom)+10;
+      write('--map-tools-top',top);
+      write('--map-drawer-top',top+toolbar.offsetHeight+8);
+      write('--map-footer-height',state.expanded?0:footer.offsetHeight);
+      write('--map-controls-height',$('.graph-bottom').offsetHeight);
+    };
+    const schedule=()=>{if(!pending){pending=true;requestAnimationFrame(update);}};
+    const observer=new ResizeObserver(schedule);
+    ['.site-header','.intro','.map-toolbar','.site-footer','.graph-bottom'].forEach(selector=>observer.observe($(selector)));
+    new MutationObserver(schedule).observe(document.body,{attributes:true,attributeFilter:['class']});
+    window.addEventListener('resize',schedule);
+    window.visualViewport?.addEventListener('resize',schedule);
+    schedule();
+  }
   function initGraph(){
     try{
       if(!window.ForceGraph3D) throw new Error('WebGL unavailable');
@@ -189,7 +211,7 @@
     $$('[data-view]').forEach(a=>{if(a.dataset.view===state.view)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
     document.title=`${state.view==='map'?'Сузір’я роду':({rating:'Рейтинг',channels:'Канали',topics:'Теми',people:'Люди',videos:'Відео'})[state.view]+' — Сузір’я роду'} — Український генеалогічний YouTube`;
     $('#ratingExplanation').hidden=state.view!=='rating';
-    if(state.graph)renderMotion();refresh();
+    if(state.graph)renderMotion();if(state.data)refresh();
   }
   function safeImage(value){try{const url=new URL(value);return url.protocol==='https:'&&['yt3.ggpht.com','yt3.googleusercontent.com','i.ytimg.com'].includes(url.hostname)?url.href:null;}catch(_){return null;}}
   function channelName(id){return state.data.channels.find(c=>c.id===id)?.title||'';}
@@ -312,7 +334,8 @@
     }catch(_){$('#pageError').hidden=false;$('#graphMessage').textContent='Каталог тимчасово недоступний.';}
   }
   document.addEventListener('DOMContentLoaded',()=>{
-    initGraph();load();
+    observeResponsiveLayout();
+    initGraph();changeView();load();
     window.addEventListener('hashchange',changeView);
     $('#ratingEntity').addEventListener('change',()=>{state.page=0;renderCatalog();});
     $('#ratingTopic').addEventListener('change',()=>{state.page=0;renderCatalog();});

@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#030916">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com https://*.google-analytics.com https://www.googletagmanager.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="description" content="Сузір’я роду — український генеалогічний YouTube. Відкривайте україномовні канали, дослідників, теми та відео, які їх поєднують. Проєкт Трекера Роду.">
   <title>Сузір’я роду — Український генеалогічний YouTube</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/site.css?v=23">
+  <link rel="stylesheet" href="assets/site.css?v=24">
 </head>
 <body class="view-map">
   <a class="skip-link" href="#main">Перейти до вмісту</a>
@@ -102,12 +102,21 @@
     <a class="tracker-link" href="https://trekerrodu.com.ua/" target="_blank" rel="noopener noreferrer" aria-label="Трекер Роду — Не губи сліди свого роду. Відкрити в новій вкладці"><span class="tracker-symbol" aria-hidden="true">✳</span><span><strong>Трекер Роду</strong><small>Не губи сліди свого роду.</small></span><span aria-hidden="true">↗</span></a>
     <span id="updatedAt"></span>
     <button class="quiet-button" id="aboutButton" type="button">Про сузір’я та джерела ↗</button>
+    <button class="quiet-button" id="analyticsSettings" type="button" aria-controls="analyticsConsent" aria-expanded="false" hidden>Налаштування статистики</button>
   </footer>
+  <section id="analyticsConsent" class="analytics-consent glass" role="region" aria-labelledby="analyticsConsentTitle" tabindex="-1" hidden>
+    <h2 id="analyticsConsentTitle">Статистика відвідувань</h2>
+    <p>Дозволити статистичні cookie Google Analytics? Це допоможе нам покращувати сайт. Без вашої згоди аналітика вимкнена.</p>
+    <details><summary>Що враховується?</summary><p>Google Analytics отримує відомості про відвідування та взаємодію із сайтом, браузер і пристрій. Рекламні функції вимкнені. Вибір зберігається у цьому браузері на 180 днів; його можна змінити кнопкою «Налаштування статистики» внизу сторінки. <a href="https://policies.google.com/privacy?hl=uk" target="_blank" rel="noopener noreferrer">Політика конфіденційності Google ↗</a></p></details>
+    <p id="analyticsConsentState" class="muted" role="status"></p>
+    <div class="analytics-consent-actions"><button id="analyticsDecline" class="quiet-button" type="button">Відхилити</button><button id="analyticsAccept" class="quiet-button" type="button">Дозволити</button></div>
+  </section>
   <dialog id="discoveryDialog" class="discovery-dialog" aria-labelledby="discoveryTitle"><div class="dialog-header"><h2 id="discoveryTitle">Оберіть тему</h2><button class="round-button" data-close="discoveryDialog" type="button" aria-label="Закрити вибір теми або місцевості">×</button></div><div class="discovery-picker-search"><label for="discoveryQuery" class="sr-only">Пошук теми або місцевості</label><input id="discoveryQuery" type="search" placeholder="ДНК, метрики, сповідки, переселення…" autocomplete="off" maxlength="150"><p id="discoveryPickerNote" class="muted"></p></div><div id="discoveryOptions" class="discovery-options" aria-live="polite"></div><div class="discovery-picker-footer"><span id="discoveryOptionCount" role="status"></span><button id="moreDiscoveryOptions" class="quiet-button" type="button">Показати ще</button></div></dialog>
   <dialog id="evidenceDialog" class="evidence-dialog" aria-labelledby="evidenceTitle"><div class="dialog-header"><div><p class="eyebrow" id="evidenceEyebrow">ВІДЕОДЖЕРЕЛА</p><h2 id="evidenceTitle"></h2></div><button class="round-button" data-close="evidenceDialog" type="button" aria-label="Закрити список відео">×</button></div><p id="evidenceNote" class="dialog-note"></p><section id="evidencePeople" class="evidence-people" aria-label="Спільні учасники" hidden></section><div id="evidenceTopics" class="topic-chips"></div><div id="evidenceVideos" class="evidence-videos" aria-live="polite"></div><button id="moreEvidence" class="quiet-button" type="button">Показати ще відео</button></dialog>
   <dialog id="playerDialog" class="player-dialog" aria-labelledby="playerTitle"><div class="dialog-header"><h2 id="playerTitle"></h2><button class="round-button" data-close="playerDialog" type="button" aria-label="Закрити програвач">×</button></div><div id="playerContainer"></div><div class="player-footer"><a id="playerExternal" target="_blank" rel="noopener noreferrer">Відкрити на YouTube ↗</a><p>Якщо автор обмежив перегляд тут, відкрийте відео на YouTube.</p></div></dialog>
   <dialog id="aboutDialog" class="about-dialog" aria-labelledby="aboutTitle"><div class="dialog-header"><h2 id="aboutTitle">Сузір’я генеалогічних каналів</h2><button class="round-button" data-close="aboutDialog" type="button" aria-label="Закрити інформацію">×</button></div><div class="about-content"><p>Сузір’я роду — простір україномовного генеалогічного YouTube від Трекера Роду. Тут канали, дослідники й теми утворюють сузір’я зв’язків, а кожен зв’язок веде до конкретних відео.</p><p>Досліджуйте спільні теми каналів і виступи людей. Тематичний перетин не означає особистого знайомства чи співпраці. Зв’язки визначаються за доступними субтитрами й описами, тож перевіряйте їх у відеоджерелах.</p><p>У добірці — україномовні відео про генеалогію та краєзнавство. Оновлення заплановані щотижня; дату останнього оновлення видно внизу сторінки.</p><p>Відео належать їхнім авторам і відтворюються через YouTube. Космічна музика — оригінальна синтезована композиція без сторонніх записів.</p></div></dialog>
   <noscript><p class="error-panel">Для інтерактивної мапи та пошуку потрібно ввімкнути JavaScript.</p></noscript>
+  <script src="assets/analytics.js?v=1" defer></script>
   <script src="assets/3d-force-graph.min.js" defer></script>
   <script src="assets/graph-core.js?v=25" defer></script>
   <script src="assets/topic-discovery.js?v=1" defer></script>

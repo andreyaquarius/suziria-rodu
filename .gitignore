@@ -12,6 +12,7 @@
 !/assets/
 !/assets/site.css
 !/assets/site.js
+!/assets/analytics.js
 !/assets/graph-core.js
 !/assets/topic-discovery.js
 !/assets/cosmic-audio.js

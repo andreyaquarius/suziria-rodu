@@ -1,0 +1,23 @@
+# Only the public static release and its deployment instructions belong here.
+# Unknown files (including databases, secrets and logs) are ignored by default.
+*
+!/.gitignore
+!/.gitattributes
+!/.nojekyll
+!/.public-site
+!/CNAME
+!/README.md
+!/index.html
+!/release.json
+!/assets/
+!/assets/site.css
+!/assets/site.js
+!/assets/graph-core.js
+!/assets/cosmic-audio.js
+!/assets/cosmic-motion.js
+!/assets/favicon.svg
+!/assets/cosmos.png
+!/assets/3d-force-graph.min.js
+!/assets/3d-force-graph.LICENSE.txt
+!/data/
+!/data/catalog.json

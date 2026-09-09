@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#030916">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="description" content="Сузір’я роду — український генеалогічний YouTube. Відкривайте україномовні канали, дослідників, теми та відео, які їх поєднують. Проєкт Трекера Роду.">
+  <title>Сузір’я роду — Український генеалогічний YouTube</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css?v=20">
+</head>
+<body class="view-map">
+  <a class="skip-link" href="#main">Перейти до вмісту</a>
+  <div class="cosmos" aria-hidden="true"><canvas class="nebula-flow" hidden></canvas></div>
+  <canvas id="starfield" class="starfield" aria-hidden="true"></canvas>
+  <header class="site-header">
+    <a class="brand" href="#map" aria-label="Сузір’я роду — головна"><span class="brand-symbol" aria-hidden="true">✳</span><span>Сузір’я роду<small>Український генеалогічний YouTube</small></span></a>
+    <nav class="nav" aria-label="Основна навігація">
+      <a href="#map" data-view="map" aria-current="page" aria-label="Сузір’я каналів"><span class="nav-map-long">Сузір’я каналів</span><span class="nav-map-short">Сузір’я</span></a>
+      <a href="#rating" data-view="rating">Рейтинг</a>
+      <a href="#channels" data-view="channels">Канали</a>
+      <a href="#topics" data-view="topics">Теми</a>
+      <a href="#people" data-view="people">Люди</a>
+      <a href="#videos" data-view="videos">Відео</a>
+    </nav>
+    <div class="sound-controls"><button id="soundToggle" class="quiet-button" type="button" aria-pressed="false" aria-label="Увімкнути космічну музику">♫ <span>Звук вимкнено</span></button><label id="volumeControl" hidden><span class="sr-only">Гучність музики</span><input id="musicVolume" type="range" min="0" max="100" value="28" aria-label="Гучність музики"></label></div>
+  </header>
+  <main id="main">
+    <section class="intro">
+      <div><p class="eyebrow">УКРАЇНСЬКИЙ ГЕНЕАЛОГІЧНИЙ ПРОСТІР</p><h1 id="viewTitle">У кожної історії є зв’язки.</h1></div>
+      <div id="catalogStats" class="catalog-stats" aria-live="polite"></div>
+    </section>
+    <div class="discovery-bar" id="discoveryBar">
+      <label class="search"><span class="sr-only">Пошук каналу, людини або теми</span><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Людина, канал, тема або відео…" maxlength="150" autocomplete="off"></label>
+      <label class="channel-select"><span class="sr-only">Канал</span><select id="channelSelect"><option value="all">Усі канали</option></select></label>
+      <label class="category-select"><span class="sr-only">Категорія</span><select id="categorySelect"><option value="all">Усі категорії</option></select></label>
+      <button id="resetFilters" class="quiet-button" type="button">Скинути фільтри</button>
+    </div>
+    <section id="mapView" class="map-layout" aria-label="Сузір’я генеалогічних каналів">
+      <div class="map-toolbar">
+        <div class="map-tools-start"><button id="optionsToggle" class="quiet-button" type="button" aria-expanded="false" aria-controls="graphOptions">☷ Фільтри й вигляд</button><span id="activeModeLabel">Канали · спільні теми</span></div>
+        <div class="map-tools-end"><button id="connectionsToggle" class="quiet-button" type="button" aria-expanded="false" aria-controls="connectionsPanel">Зв’язки й відео ↗</button><button id="expandGraph" class="quiet-button" type="button" aria-pressed="false" aria-label="Розгорнути граф на весь екран">⛶ <span>На весь екран</span></button></div>
+      </div>
+      <aside id="graphOptions" class="map-sidebar glass graph-drawer" hidden aria-label="Фільтри та вигляд графа">
+        <button class="round-button drawer-close" data-close-panel="options" type="button" aria-label="Закрити налаштування графа">×</button>
+        <div id="mapFilters"></div>
+        <details class="map-options" open><summary>Які зв’язки досліджуємо?</summary>
+          <div class="mode-list" id="modeList" role="group" aria-label="Вид графа">
+            <button class="mode active" data-mode="channel_overlap" type="button" aria-pressed="true"><span>01</span> Канали · спільні теми</button>
+            <button class="mode" data-mode="channel_topic" type="button" aria-pressed="false"><span>02</span> Канал ↔ тема</button>
+            <button class="mode" data-mode="people" type="button" aria-pressed="false"><span>03</span> Люди · спільні відео</button>
+            <button class="mode" data-mode="people_topics" type="button" aria-pressed="false"><span>04</span> Люди · спільні теми</button>
+            <button class="mode" data-mode="person_topic" type="button" aria-pressed="false"><span>05</span> Людина ↔ тема</button>
+            <button class="mode" data-mode="channel_person" type="button" aria-pressed="false"><span>06</span> Канал ↔ людина</button>
+            <button class="mode" data-mode="topic_topic" type="button" aria-pressed="false"><span>07</span> Тема ↔ тема</button>
+          </div>
+          <p id="modeDescription" class="muted">Спільні теми не означають особисту співпрацю. Натисніть на зв’язок, щоб побачити відео з обох каналів.</p>
+          <label class="field">Щільність зв’язків<select id="densitySelect"><option value="1" selected>Усі зв’язки</option><option value="2">Від 2 перетинів</option><option value="4">Від 4 перетинів</option><option value="8">Від 8 перетинів</option></select></label>
+          <label class="field">Підписи графа<select id="labelMode" aria-describedby="labelModeHelp"><option value="auto" selected>Автоматично — без накладання</option><option value="all">Усі підписи</option></select></label>
+          <p id="labelModeHelp" class="label-mode-help">Автоматично — найважливіші назви біля кружечків. Наблизьте граф для більшої деталізації або наведіть курсор на будь-який вузол.</p>
+        </details>
+        <div class="legend"><span class="channel-dot">Канали</span><span class="person-dot">Люди</span><span class="topic-dot">Теми</span></div>
+      </aside>
+      <div id="graphStage" class="graph-stage">
+        <div id="cosmicGraph" aria-label="Інтерактивний граф генеалогічних зв’язків" aria-describedby="graphGestureHint"></div>
+        <svg id="graphLabelLines" class="graph-label-lines" aria-hidden="true" focusable="false"></svg>
+        <div id="graphLabels" class="graph-labels" aria-label="Підписи графа"></div>
+        <div id="graphMessage" class="graph-message" role="status">Завантажуємо сузір’я…</div>
+        <div class="graph-bottom"><div class="graph-caption"><p id="graphCount" aria-live="polite"></p><p id="graphGestureHint">Потягніть тло й відпустіть, щоб розкрутити граф</p></div><div class="graph-actions"><button id="labelsToggle" class="quiet-button graph-label-toggle" type="button" aria-pressed="false" aria-controls="graphLabels graphLabelLines" title="Приховати постійні підписи; назви залишаться при наведенні на кружечок">Приховати підписи</button><button id="fitGraph" class="round-button" aria-label="Умістити весь граф" title="Умістити весь граф" type="button">⤢</button><button id="motionToggle" class="round-button" aria-label="Призупинити рух" title="Призупинити рух" type="button" aria-pressed="false">Ⅱ</button></div></div>
+      </div>
+      <section id="nodeFocus" class="focus-card glass" hidden aria-labelledby="focusTitle" aria-live="polite"><div class="focus-heading"><div><p class="eyebrow" id="focusKind">ОБРАНИЙ ВУЗОЛ</p><h2 id="focusTitle"></h2></div><button id="clearNodeFocus" class="round-button" type="button" aria-label="Скасувати вибір і показати весь граф">×</button></div><p id="focusStats"></p><div class="focus-actions"><button id="showNodeVideos" class="primary-button" type="button">Показати відео</button><button id="showNodeConnections" class="quiet-button" type="button">Усі зв’язки ↗</button></div></section>
+      <aside id="connectionsPanel" class="connections-panel glass graph-drawer" hidden aria-label="Зв’язки й відеодокази"><div class="panel-heading"><h2 id="connectionsHeading">Почніть зі зв’язку</h2><button class="round-button" data-close-panel="connections" type="button" aria-label="Закрити панель зв’язків">×</button></div><p class="muted" id="connectionsNote">Оберіть вузол у сузір’ї або один із перетинів нижче.</p><div id="connectionsList"></div></aside>
+    </section>
+    <section id="catalogView" class="catalog-view" hidden>
+      <div id="ratingExplanation" class="rating-explanation glass" hidden>
+        <div><p class="eyebrow">РЕЙТИНГ СПІЛЬНОТИ</p><h2>Люди й канали, що допомагають досліджувати рід</h2>
+          <p>Відкривайте канали й дослідників, які розповідають про родовід, краєзнавство та історичні джерела.</p>
+          <div class="rating-controls"><label>Рейтинг<select id="ratingEntity"><option value="channels">Канали</option><option value="people">Люди — на всіх каналах</option></select></label><label id="ratingTopicField" hidden>Тема виступів<select id="ratingTopic"><option value="all">Усі теми</option></select></label></div>
+        </div>
+        <details><summary>Що враховує рейтинг?</summary>
+          <p>Генеалогічні матеріали мають найбільшу вагу. Також враховуються краєзнавство, історичні дослідження, робота з джерелами й практичні методи. Напрям визначається змістом розмови, а не окремою згадкою.</p>
+          <p>Рейтинг людей поєднує їхні тематичні виступи на різних каналах. Оберіть тему, щоб знайти дослідників потрібного напряму.</p>
+          <p>Оцінка спирається на доступні описи й субтитри. Ймовірних спікерів позначено у відеоджерелах.</p>
+        </details>
+      </div>
+      <div id="catalogResults" class="card-grid" aria-live="polite"></div><div class="pagination"><button id="prevPage" class="quiet-button" type="button">← Назад</button><span id="pageInfo" role="status"></span><button id="nextPage" class="quiet-button" type="button">Далі →</button></div>
+    </section>
+    <section id="pageError" class="error-panel glass" hidden role="alert"><h2>Не вдалося завантажити каталог</h2><p>Перевірте з’єднання й спробуйте ще раз.</p><button id="retryData" class="primary-button" type="button">Повторити</button></section>
+  </main>
+  <footer class="site-footer">
+    <a class="tracker-link" href="https://trekerrodu.com.ua/" target="_blank" rel="noopener noreferrer" aria-label="Трекер Роду — Не губи сліди свого роду. Відкрити в новій вкладці"><span class="tracker-symbol" aria-hidden="true">✳</span><span><strong>Трекер Роду</strong><small>Не губи сліди свого роду.</small></span><span aria-hidden="true">↗</span></a>
+    <span id="updatedAt"></span>
+    <button class="quiet-button" id="aboutButton" type="button">Про сузір’я та джерела ↗</button>
+  </footer>
+  <dialog id="evidenceDialog" class="evidence-dialog" aria-labelledby="evidenceTitle"><div class="dialog-header"><div><p class="eyebrow" id="evidenceEyebrow">ВІДЕОДЖЕРЕЛА</p><h2 id="evidenceTitle"></h2></div><button class="round-button" data-close="evidenceDialog" type="button" aria-label="Закрити список відео">×</button></div><p id="evidenceNote" class="dialog-note"></p><div id="evidenceTopics" class="topic-chips"></div><div id="evidenceVideos" class="evidence-videos"></div><button id="moreEvidence" class="quiet-button" type="button">Показати ще відео</button></dialog>
+  <dialog id="playerDialog" class="player-dialog" aria-labelledby="playerTitle"><div class="dialog-header"><h2 id="playerTitle"></h2><button class="round-button" data-close="playerDialog" type="button" aria-label="Закрити програвач">×</button></div><div id="playerContainer"></div><div class="player-footer"><a id="playerExternal" target="_blank" rel="noopener noreferrer">Відкрити на YouTube ↗</a><p>Якщо автор обмежив перегляд тут, відкрийте відео на YouTube.</p></div></dialog>
+  <dialog id="aboutDialog" class="about-dialog" aria-labelledby="aboutTitle"><div class="dialog-header"><h2 id="aboutTitle">Сузір’я генеалогічних каналів</h2><button class="round-button" data-close="aboutDialog" type="button" aria-label="Закрити інформацію">×</button></div><div class="about-content"><p>Сузір’я роду — простір україномовного генеалогічного YouTube від Трекера Роду. Тут канали, дослідники й теми утворюють сузір’я зв’язків, а кожен зв’язок веде до конкретних відео.</p><p>Досліджуйте спільні теми каналів і виступи людей. Тематичний перетин не означає особистого знайомства чи співпраці. Зв’язки визначаються за доступними субтитрами й описами, тож перевіряйте їх у відеоджерелах.</p><p>У добірці — україномовні відео про генеалогію та краєзнавство. Оновлення заплановані щотижня; дату останнього оновлення видно внизу сторінки.</p><p>Відео належать їхнім авторам і відтворюються через YouTube. Космічна музика — оригінальна синтезована композиція без сторонніх записів.</p></div></dialog>
+  <noscript><p class="error-panel">Для інтерактивної мапи та пошуку потрібно ввімкнути JavaScript.</p></noscript>
+  <script src="assets/3d-force-graph.min.js" defer></script>
+  <script src="assets/graph-core.js?v=23" defer></script>
+  <script src="assets/cosmic-audio.js?v=4" defer></script>
+  <script src="assets/cosmic-motion.js?v=4" defer></script>
+  <script src="assets/site.js?v=23" defer></script>
+</body>
+</html>

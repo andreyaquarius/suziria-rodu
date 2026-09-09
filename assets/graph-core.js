@@ -3,12 +3,12 @@
   const nodeId = (kind, id) => `${kind}_${id}`;
   const norm = text => String(text || '').normalize('NFKC').toLocaleLowerCase('uk');
   const idOf = value => typeof value === 'object' ? value.id : value;
-  function filterVideos(data, {search='', category='all', channel='all'}={}) {
+  function filterVideos(data, {search='', category='all', channel='all',videoIds=null}={}) {
     const topics = new Map(data.topics.map(t => [t.id,t]));
     const channels = new Map(data.channels.map(c => [c.id,c.title]));
     const people = new Map(data.people.map(p => [p.id,p.name]));
     const term = norm(search.trim());
-    return data.videos.filter(v => (channel === 'all' || String(v.channel_id) === String(channel)) && (category === 'all' || v.topics.some(id => topics.get(id)?.category === category)) && (!term || norm([v.title, channels.get(v.channel_id), ...v.topics.map(id => topics.get(id)?.name), ...v.people.map(id => people.get(id))].join(' ')).includes(term)));
+    return data.videos.filter(v => (!videoIds||videoIds.has(v.id)) && (channel === 'all' || String(v.channel_id) === String(channel)) && (category === 'all' || v.topics.some(id => topics.get(id)?.category === category)) && (!term || norm([v.title, channels.get(v.channel_id), ...v.topics.map(id => topics.get(id)?.name), ...v.people.map(id => people.get(id))].join(' ')).includes(term)));
   }
   function buildGraph(data, videos, {
     mode='channel_overlap',
@@ -23,19 +23,22 @@
     // Channel-overlap needs sources from both sides; other modes stay within
     // the selected channel. Apply the overlap filter before ranking/truncation.
     const selectedChannel=channel==='all'?null:nodeId('channel',channel);
-    if(selectedChannel&&mode!=='channel_overlap')videos=videos.filter(v=>String(v.channel_id)===String(channel));
+    const crossChannel=['channel_overlap','channel_connections'].includes(mode);
+    if(selectedChannel&&!crossChannel)videos=videos.filter(v=>String(v.channel_id)===String(channel));
     const categoryTopics=new Set(data.topics.filter(t=>category==='all'||t.category===category).map(t=>t.id));
     const labels = new Map([...data.channels.map(c=>[nodeId('channel',c.id),c.title]), ...data.people.map(p=>[nodeId('person',p.id),p.name]), ...data.topics.map(t=>[nodeId('topic',t.id),t.name])]);
-    const nodes = new Map(), links = new Map(), topicEntities = new Map();
+    const nodes = new Map(), links = new Map(), topicEntities = new Map(), personChannels = new Map();
     function addNode(id, video) { if (!nodes.has(id)) nodes.set(id,{id,type:id.split('_')[0],label:labels.get(id)||id,videos:new Set()}); nodes.get(id).videos.add(video.id); }
     function addLink(a,b,ids,topics=[],relation='together') {
       const [source,target]=[a,b].sort(), key=`${source}:${target}`;
       if(!links.has(key)) links.set(key,{id:key,source,target,relation,videos:new Set(),topics:new Set()});
       const link=links.get(key); ids.forEach(id=>link.videos.add(id)); topics.forEach(id=>link.topics.add(id));
+      return link;
     }
     function pairs(items, fn){for(let a=0;a<items.length;a++)for(let b=a+1;b<items.length;b++)fn(items[a],items[b]);}
     for (const v of videos) {
       const relevantTopics=v.topics.filter(id=>categoryTopics.has(id));
+      if(mode==='channel_connections'&&category!=='all'&&!relevantTopics.length)continue;
       const c=nodeId('channel',v.channel_id), ps=v.people.map(id=>nodeId('person',id)), ts=relevantTopics.map(id=>nodeId('topic',id));
       if(mode.startsWith('channel')) addNode(c,v);
       if(['people','people_topics','person_topic','channel_person'].includes(mode)) ps.forEach(id=>addNode(id,v));
@@ -43,35 +46,49 @@
       if(['channel_overlap','people_topics'].includes(mode)) relevantTopics.forEach(t=>{if(!topicEntities.has(t))topicEntities.set(t,new Map());const group=topicEntities.get(t);for(const entity of mode==='channel_overlap'?[c]:ps){if(!group.has(entity))group.set(entity,new Set());group.get(entity).add(v.id);}});
       if(mode==='channel_topic') ts.forEach(t=>addLink(c,t,[v.id],[Number(t.split('_')[1])]));
       if(mode==='channel_person') ps.forEach(p=>addLink(c,p,[v.id],relevantTopics));
+      if(mode==='channel_connections') for(const person of new Set(v.people)){
+        if(!personChannels.has(person))personChannels.set(person,new Map());
+        const channels=personChannels.get(person);
+        if(!channels.has(c))channels.set(c,new Set());
+        channels.get(c).add(v.id);
+      }
       if(mode==='person_topic') ps.forEach(p=>ts.forEach(t=>addLink(p,t,[v.id],[Number(t.split('_')[1])])));
       if(mode==='people') pairs(ps,(a,b)=>addLink(a,b,[v.id],relevantTopics));
       if(mode==='topic_topic') pairs(ts,(a,b)=>addLink(a,b,[v.id],[Number(a.split('_')[1]),Number(b.split('_')[1])]));
     }
     for(const [topic,entities] of topicEntities) pairs([...entities.keys()],(a,b)=>addLink(a,b,[...entities.get(a),...entities.get(b)],[topic],'shared_topics'));
-    const ranked=[...links.values()].map(l=>({...l,weight:l.relation==='shared_topics'?l.topics.size:l.videos.size,videos:[...l.videos],topics:[...l.topics]})).filter(l=>l.weight>=minWeight&&(!selectedChannel||mode!=='channel_overlap'||l.source===selectedChannel||l.target===selectedChannel)).sort((a,b)=>b.weight-a.weight||a.id.localeCompare(b.id));
+    // v.people contains admitted participant IDs, never mention-only relations.
+    // Repeated appearances add evidence, not extra people to the edge weight.
+    for(const [person,channels] of personChannels) pairs([...channels.keys()],(a,b)=>{
+      const link=addLink(a,b,[...channels.get(a),...channels.get(b)],[],'shared_people');
+      (link.people??=new Set()).add(person);
+    });
+    const ranked=[...links.values()].map(l=>({...l,weight:l.relation==='shared_people'?l.people.size:l.relation==='shared_topics'?l.topics.size:l.videos.size,videos:[...l.videos],topics:[...l.topics],...(l.people?{people:[...l.people].sort((a,b)=>a-b)}:{})})).filter(l=>l.weight>=minWeight&&(!selectedChannel||!crossChannel||l.source===selectedChannel||l.target===selectedChannel)).sort((a,b)=>b.weight-a.weight||a.id.localeCompare(b.id));
     const scores=new Map();ranked.forEach(l=>[l.source,l.target].forEach(id=>scores.set(id,(scores.get(id)||0)+l.weight)));
     const selected=new Set([...scores].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,maxNodes).map(([id])=>id));
     const finalLinks=ranked.filter(l=>selected.has(l.source)&&selected.has(l.target)).slice(0,maxEdges);
     const connected=new Set(finalLinks.flatMap(l=>[l.source,l.target]));
     return {nodes:[...nodes.values()].filter(n=>connected.has(n.id)).map(n=>({...n,videos:[...n.videos],weight:scores.get(n.id)||1})),links:finalLinks,totalLinks:ranked.length,truncated:ranked.length>finalLinks.length};
   }
-  function evidenceVideos(data, selection, videos=data.videos, topic=null) {
+  function evidenceVideos(data, selection, videos=data.videos, topic=null, person=null) {
     if(topic!=null&&selection.relation==='shared_topics'&&!selection.topics.includes(Number(topic)))return [];
     const ids=new Set(selection.videos || []);
-    return videos.filter(v=>ids.has(v.id) && (topic==null||v.topics.includes(Number(topic))));
+    const people=selection.relation==='shared_people'?(selection.people||[]).filter(id=>person==null||id===Number(person)):null;
+    return videos.filter(v=>ids.has(v.id) && (topic==null||v.topics.includes(Number(topic))) && (!people||v.people.some(id=>people.includes(id))));
   }
-  function evidenceFor(video, selection={}, topic=null) {
+  function evidenceFor(video, selection={}, topic=null, person=null) {
     let ids;
-    if(topic!=null)ids=[nodeId('topic',Number(topic))];
+    if(selection.relation==='shared_people')ids=(selection.people||[]).filter(id=>video.people.includes(id)&&(person==null||id===Number(person))).map(id=>nodeId('person',id));
+    else if(topic!=null)ids=[nodeId('topic',Number(topic))];
     else if(selection.relation==='shared_topics')ids=(selection.topics||[]).map(id=>nodeId('topic',id));
     else if(/^(person|topic)_\d+$/.test(selection.id||''))ids=[selection.id];
     else ids=[idOf(selection.source||''),idOf(selection.target||'')].filter(id=>/^(person|topic)_\d+$/.test(id));
     // Never substitute an unrelated quotation when the selected relationship has none.
     return (video.evidence||[]).find(e=>ids.includes(e.id))||null;
   }
-  function evidenceGroups(data, selection, videos=data.videos, topic=null) {
-    const matches=evidenceVideos(data,selection,videos,topic);
-    if(selection.relation!=='shared_topics')return [{label:null,videos:matches}];
+  function evidenceGroups(data, selection, videos=data.videos, topic=null, person=null) {
+    const matches=evidenceVideos(data,selection,videos,topic,person);
+    if(!['shared_topics','shared_people'].includes(selection.relation))return [{label:null,videos:matches}];
     return [selection.source,selection.target].map(endpoint=>{
       const id=idOf(endpoint),[kind,raw]=id.split('_'),number=Number(raw);
       const entity=(kind==='channel'?data.channels:data.people).find(item=>item.id===number);

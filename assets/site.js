@@ -1,13 +1,68 @@
 (() => {
   'use strict';
-  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], Core=window.GenealogyGraph;
-  const state={data:null,videos:[],graph:null,graphData:{nodes:[],links:[]},view:'map',mode:'channel_overlap',search:'',category:'all',channel:'all',page:0,selection:null,evidenceTopic:null,evidenceLimit:12,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,expanded:false,focusNode:null,focusIds:new Set(),focusLinks:new Set(),fitTimer:0,labelsVisible:true,labelMode:'auto',labels:[],labelFrame:0};
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], Core=window.GenealogyGraph, Discovery=window.TopicDiscovery;
+  const state={data:null,videos:[],graph:null,graphData:{nodes:[],links:[]},view:'map',mode:'channel_connections',search:'',category:'all',channel:'all',page:0,selection:null,evidenceTopic:null,evidencePerson:null,evidenceLimit:12,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,expanded:false,focusNode:null,focusIds:new Set(),focusLinks:new Set(),fitTimer:0,labelsVisible:true,labelMode:'auto',labels:[],labelFrame:0};
   const music=new window.CosmicAudio();
   const cosmos=new window.CosmicMotion($('#starfield'),$('.cosmos'),{paused:state.paused});
   const titles={map:'У кожної історії є зв’язки.',rating:'Рейтинг генеалогічних каналів.',channels:'Канали, які досліджують рід.',topics:'Знайдіть свою тему.',people:'Люди генеалогічного простору.',videos:'Історії, до яких варто придивитись.'};
   const modeHelp={channel_overlap:'Спільні теми не означають особисту співпрацю. Натисніть на зв’язок, щоб побачити відео з обох каналів.',channel_topic:'Які теми досліджує кожен канал? Відкрийте вузол або лінію, щоб переглянути джерела.',people:'Люди, позначені учасниками одного відео. Згадки імен самі по собі не створюють зв’язок.',people_topics:'Люди беруть участь у відео на спільні теми, але не обов’язково разом. Для кожного учасника є окремі джерела.',channel_person:'На яких каналах зустрічається людина як учасник відео. Це не означає, що вона є власником каналу.',person_topic:'Теми у відео за участі людини. Це не обов’язково її особиста теза — перевірте контекст.',topic_topic:'Теми, що зустрічаються разом в одному відео. Виберіть пару, щоб побачити ці відео.'};
   const colors=Core.graphColors;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  modeHelp.channel_connections='Канали з’єднані через людей, які беруть участь у відео обох каналів. Товщина лінії — кількість спільних учасників. Натисніть зв’язок, щоб побачити імена та відео.';
+  function linkWeightLabel(link){return `${link.weight} ${link.relation==='shared_people'?'спільних учасників':link.relation==='shared_topics'?'спільних тем':'відео'}`;}
+  function personName(id){return state.data.people.find(p=>p.id===id)?.name||'';}
+  Object.assign(state,{discoveryIndex:null,topicSelection:null,placeSelection:null,titleOnly:false,discoveryMatches:null,matchingVideoIds:null,pickerKind:'topic',pickerLimit:30});
+  function updateDiscoveryFilters(){
+    if(!state.topicSelection&&!state.placeSelection){state.titleOnly=false;$('#titleOnlyFilter').checked=false;}
+    state.discoveryMatches=state.discoveryIndex?.select({topic:state.topicSelection,place:state.placeSelection,titleOnly:state.titleOnly})||null;
+    state.matchingVideoIds=state.discoveryMatches?new Set(state.discoveryMatches.keys()):null;
+    const topic=state.discoveryIndex?.get(state.topicSelection),place=state.discoveryIndex?.get(state.placeSelection);
+    $('#topicPickerButton').textContent=topic?.name||'Обрати тему або підбірку ⌕';
+    $('#placePickerButton').textContent=place?.name||'Обрати місто, село чи регіон ⌕';
+    $('#titleOnlyFilter').disabled=!topic&&!place;
+    $('#activeDiscoveryFilters').innerHTML=[topic,place].filter(Boolean).map(e=>`<button class="quiet-button" type="button" data-clear-discovery="${e.kind==='place'?'place':'topic'}" aria-label="Прибрати фільтр: ${esc(e.name)}">${esc(e.name)} ×</button>`).join('');
+  }
+  function openDiscoveryPicker(kind){
+    if(!state.discoveryIndex)return;
+    state.pickerKind=kind;state.pickerLimit=30;$('#discoveryQuery').value='';
+    $('#discoveryTitle').textContent=kind==='place'?'Оберіть місцевість':'Оберіть тему або підбірку';
+    $('#discoveryQuery').placeholder=kind==='place'?'Місто, село, регіон…':'ДНК, метрики, сповідки, переселення…';
+    $('#discoveryPickerNote').textContent=kind==='place'?'Місцевості, визначені у змісті відео. Розташування архіву саме по собі не створює підбірки.':'Підбірки об’єднують споріднені теми. Нижче також доступні вузькі теми з аналізів відео.';
+    const other=state.discoveryIndex.get(kind==='place'?state.topicSelection:state.placeSelection);
+    const constraints=[other?.name,state.channel!=='all'?channelName(Number(state.channel)):null,state.search?`пошук «${state.search}»`:null,state.titleOnly?'збіг у назві':null].filter(Boolean);
+    if(constraints.length)$('#discoveryPickerNote').textContent+=` З урахуванням: ${constraints.join(' · ')}.`;
+    renderDiscoveryPicker();$('#discoveryDialog').showModal();$('#discoveryQuery').focus();
+  }
+  function renderDiscoveryPicker(){
+    const other=state.pickerKind==='place'?{topic:state.topicSelection}:{place:state.placeSelection};
+    const related=state.discoveryIndex.select({...other,titleOnly:state.titleOnly});
+    const videos=Core.filterVideos(state.data,{search:state.search,category:state.category,channel:state.channel,videoIds:related?new Set(related.keys()):null});
+    const options=state.discoveryIndex.options(state.pickerKind,{query:$('#discoveryQuery').value,videoIds:new Set(videos.map(v=>v.id)),titleOnly:state.titleOnly});
+    $('#discoveryOptions').innerHTML=options.slice(0,state.pickerLimit).map(e=>`<button type="button" class="discovery-option" data-discovery-kind="${e.kind}" data-discovery-id="${esc(e.id)}"><span><small>${e.kind==='collection'?'ПІДБІРКА':e.kind==='place'?esc(e.hint):'ВУЗЬКА ТЕМА'}</small><strong>${esc(e.name)}</strong>${e.kind==='collection'?`<span class="muted">${esc(e.hint)}</span>`:''}</span><span class="discovery-option-count">${e.count} відео ↗</span></button>`).join('')||'<p class="muted">Збігів не знайдено. Спробуйте коротшу назву або приберіть інший фільтр.</p>';
+    $('#discoveryOptionCount').textContent=`Показано ${Math.min(options.length,state.pickerLimit)} із ${options.length}`;
+    $('#moreDiscoveryOptions').hidden=options.length<=state.pickerLimit;
+  }
+  function chooseDiscovery(kind,id){
+    const selection={kind,id:kind==='collection'?id:Number(id)};
+    if(!state.discoveryIndex?.get(selection))return;
+    if(kind==='place')state.placeSelection=selection;else state.topicSelection=selection;
+    if($('#discoveryDialog').open)$('#discoveryDialog').close();
+    if(state.view==='videos')refresh();else location.hash='videos';
+  }
+  function renderDiscoverySummary(){
+    $('#showFilteredVideos').textContent=`Показати відео (${state.videos.length})`;
+    $('#showFilteredVideos').hidden=state.view==='videos';
+    $('#selectionSummary').hidden=state.view!=='videos'||!state.discoveryMatches;
+    if(!$('#selectionSummary').hidden){
+      const labels=[state.topicSelection,state.placeSelection].filter(Boolean).map(s=>state.discoveryIndex.get(s)?.name);
+      $('#selectionSummary').innerHTML=`<h2>${labels.map(esc).join(' · ')}</h2><p>${state.videos.length} відео${state.titleOnly?' · збіг у назві відео':' · спочатку найточніші збіги'}${state.topicSelection&&state.placeSelection?' · тема й місцевість в одному відео':''}.</p>`;
+    }
+    $('#topicCollections').hidden=state.view!=='topics';
+    if(state.view==='topics'){
+      const options=state.discoveryIndex.options('topic',{videoIds:new Set(state.videos.map(v=>v.id)),titleOnly:state.titleOnly}).filter(e=>e.kind==='collection');
+      $('#topicCollections').innerHTML=`<h2>Що хочете дослідити?</h2><div class="collection-grid">${options.map(e=>`<button class="glass collection-card" type="button" data-discovery-kind="collection" data-discovery-id="${e.id}"><strong>${esc(e.name)}</strong><span>${esc(e.hint)}</span><small>${e.count} відео ↗</small></button>`).join('')}</div><h2>Вузькі теми</h2><button type="button" class="quiet-button" data-open-topic-picker>Знайти конкретну тему ⌕</button>`;
+    }
+  }
   function observeResponsiveLayout(){
     let pending=false;
     const update=()=>{
@@ -41,7 +96,7 @@
         .nodeLabel(n=>esc(n.label)).linkColor(()=>'rgba(133,194,255,.78)').linkOpacity(.55)
         .linkWidth(Core.graphLinkWidth).linkDirectionalParticles(1).linkDirectionalParticleWidth(1.8).linkDirectionalParticleSpeed(.003)
         .linkDirectionalParticleColor(()=>'#c8f3ff')
-        .linkLabel(l=>`${l.weight} ${l.relation==='shared_topics'?'спільних тем':'відео'}`)
+        .linkLabel(l=>esc(linkWeightLabel(l)+(l.people?.length?' · '+l.people.slice(0,3).map(personName).join(', '):'')))
         .onNodeHover(node=>{for(const item of state.labels){item.button.classList.toggle('is-hovered',item.node.id===node?.id);item.line.classList.toggle('is-hovered',item.node.id===node?.id);}})
         .onNodeClick(selectGraphNode)
         .onLinkClick(l=>{if(state.dynamics.canSelect())openEvidence(l);})
@@ -178,11 +233,12 @@
   }
   function renderMap(){
     clearNodeFocus(false);
-    const channelOverlap=state.channel!=='all'&&state.mode==='channel_overlap';
-    const videos=channelOverlap?Core.filterVideos(state.data,{search:state.search,category:state.category}):state.videos;
+    const channelOverlap=state.channel!=='all'&&['channel_overlap','channel_connections'].includes(state.mode);
+    const videos=channelOverlap?Core.filterVideos(state.data,{search:state.search,category:state.category,videoIds:state.matchingVideoIds}):state.videos;
     state.graphData=Core.buildGraph(state.data,videos,{mode:state.mode,minWeight:Number($('#densitySelect').value),category:state.category,channel:state.channel});
     const g=state.graphData;
-    $('#modeDescription').textContent=channelOverlap?'Перетини обраного каналу з іншими. Кожен зв’язок містить відеоджерела з обох каналів. Спільні теми не означають особисту співпрацю.':modeHelp[state.mode];
+    $('#modeDescription').textContent=(channelOverlap?'Перетини обраного каналу з іншими. ':'')+modeHelp[state.mode];
+    $$('#densitySelect option').forEach(option=>{if(option.value!=='1')option.textContent=`Від ${option.value} ${state.mode==='channel_connections'?'спільних учасників':['channel_overlap','people_topics'].includes(state.mode)?'спільних тем':'відео'}`;});
     $('#graphCount').textContent=`${g.nodes.length} вузлів · ${g.links.length} зв’язків${g.truncated?' · показано найсильніші':''}`;
     if(state.graph){
       state.dynamics.hold(2100);
@@ -198,10 +254,10 @@
     const byId=new Map(g.nodes.map(n=>[n.id,n]));
     const links=state.focusNode?g.links.filter(l=>state.focusLinks.has(l.id)):g.links.slice(0,6);
     $('#connectionsHeading').textContent=state.focusNode?'Зв’язки обраного вузла':'Почніть зі зв’язку';$('#connectionsNote').textContent=state.focusNode?`Для «${state.focusNode.label}». Виберіть перетин, щоб переглянути відеоджерела.`:'Оберіть вузол у сузір’ї або один із перетинів нижче.';
-    $('#connectionsList').innerHTML=links.map(l=>`<button class="connection" data-connection="${g.links.indexOf(l)}" type="button"><strong>${esc(byId.get(Core.idOf(l.source))?.label)} <span class="join">↔</span> ${esc(byId.get(Core.idOf(l.target))?.label)}</strong><p>${l.topics.slice(0,2).map(id=>esc(state.data.topics.find(t=>t.id===id)?.name)).join(' · ')}</p><small>${l.weight} ${l.relation==='shared_topics'?'спільних тем':'спільних відео'} ↗</small></button>`).join('')||'<p class="muted">Змініть фільтри, щоб знайти інші зв’язки.</p>';
+    $('#connectionsList').innerHTML=links.map(l=>`<button class="connection" data-connection="${g.links.indexOf(l)}" type="button"><strong>${esc(byId.get(Core.idOf(l.source))?.label)} <span class="join">↔</span> ${esc(byId.get(Core.idOf(l.target))?.label)}</strong><p>${l.relation==='shared_people'?l.people.slice(0,3).map(id=>esc(personName(id))).join(' · ')+(l.people.length>3?` · ще ${l.people.length-3}`:''):l.topics.slice(0,2).map(id=>esc(topicName(id))).join(' · ')}</p><small>${esc(linkWeightLabel(l))} ↗</small></button>`).join('')||'<p class="muted">Змініть фільтри, щоб знайти інші зв’язки.</p>';
   }
   function renderMotion(){cosmos.setPaused(state.paused);const b=$('#motionToggle');b.textContent=state.paused?'▷':'Ⅱ';b.setAttribute('aria-pressed',String(state.paused));b.setAttribute('aria-label',state.paused?'Продовжити рух':'Призупинити рух');b.title=state.paused?'Продовжити рух графа та зоряного неба':'Призупинити рух графа та зоряного неба';if(state.graph){state.dynamics.setState({paused:state.paused,visible:!document.hidden&&state.view==='map'});styleGraphSelection();}}
-  function refresh(){if(!state.data)return;state.page=0;state.videos=Core.filterVideos(state.data,{search:state.search,category:state.category,channel:state.channel});if(state.view==='map')renderMap();else renderCatalog();}
+  function refresh(){if(!state.data)return;state.page=0;updateDiscoveryFilters();state.videos=Core.filterVideos(state.data,{search:state.search,category:state.category,channel:state.channel,videoIds:state.matchingVideoIds});if(state.discoveryMatches)state.videos.sort((a,b)=>state.discoveryMatches.get(b.id).score-state.discoveryMatches.get(a.id).score);renderDiscoverySummary();if(state.view==='map')renderMap();else renderCatalog();}
   function changeView(){
     const view=location.hash.slice(1)||'map';state.view=Object.hasOwn(titles,view)?view:'map';state.page=0;
     document.body.classList.toggle('view-map',state.view==='map');
@@ -219,11 +275,21 @@
   function formatDate(value){if(!value)return '';const date=new Date(value);return Number.isNaN(date.valueOf())?'':new Intl.DateTimeFormat('uk',{day:'numeric',month:'short',year:'numeric'}).format(date);}
   function timecode(value){const seconds=Math.max(0,Math.floor(Number(value)||0));const hours=Math.floor(seconds/3600);return `${hours?hours+':':''}${String(Math.floor(seconds/60)%60).padStart(hours?2:1,'0')}:${String(seconds%60).padStart(2,'0')}`;}
   function baseVideoCard(v, evidence=false){
-    const proof=evidence?Core.evidenceFor(v,state.selection||{},state.evidenceTopic):null;
+    const proof=evidence?Core.evidenceFor(v,state.selection||{},state.evidenceTopic,state.evidencePerson):null;
     return `<article class="video-card ${evidence?'with-evidence':''}"><button class="video-thumb" data-play="${v.id}" type="button" aria-label="Дивитися: ${esc(v.title)}"><img src="https://i.ytimg.com/vi/${esc(v.youtube_id)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360"><span class="play-symbol" aria-hidden="true">▷</span>${v.duration?`<span class="duration">${timecode(v.duration)}</span>`:''}</button><div class="video-copy"><p class="card-kicker">${esc(channelName(v.channel_id))}${v.published_at?' · '+formatDate(v.published_at):''}</p><h3><button class="title-button" type="button" data-play="${v.id}">${esc(v.title)}</button></h3><p class="video-summary">${esc(v.summary)}</p><div class="card-topics">${v.topics.slice(0,3).map(id=>`<button data-entity="topic_${id}" type="button">${esc(topicName(id))}</button>`).join('')}</div>${evidence?`<p class="source-basis">Підстава зв’язку: ${v.basis==='captions'?'доступні субтитри':'назва та опис відео; перевірте зміст під час перегляду'}.</p>${proof?.text?`<p class="evidence-text">${esc(proof.text)}</p>`:''}`:''}<div class="video-actions"><button class="primary-button" data-play="${v.id}" type="button">▷ Дивитися тут</button><a href="https://www.youtube.com/watch?v=${esc(v.youtube_id)}" target="_blank" rel="noopener noreferrer">YouTube ↗</a>${proof?.at!=null?`<button class="quiet-button" data-play="${v.id}" data-start="${proof.at}" type="button">З ${timecode(proof.at)}</button>`:''}</div></div></article>`;
   }
   function videoCard(v,evidence=false){
-    const markup=baseVideoCard(v,evidence);if(!evidence||!v.rating)return markup;
+    let markup=baseVideoCard(v,evidence);
+    if(!evidence&&state.discoveryMatches?.has(v.id)){
+      const reasons=state.discoveryMatches.get(v.id).reasons;
+      const notes=`<div class="discovery-match">${reasons.map(r=>`<p><strong>${esc(r.label)}</strong> · ${r.basis==='title'?'у назві відео':r.basis==='captions'?'за субтитрами':'за описом'}</p>${r.basis!=='title'?`<blockquote>${esc(r.text)}</blockquote>`:''}${r.at!=null?`<button class="quiet-button" type="button" data-play="${v.id}" data-start="${r.at}">▷ Перейти до ${timecode(r.at)}</button>`:''}`).join('')}</div>`;
+      markup=markup.replace('<div class="video-actions">',notes+'<div class="video-actions">');
+    }
+    if(evidence&&state.selection?.relation==='shared_people'){
+      const people=(state.selection.people||[]).filter(id=>v.people.includes(id)&&(state.evidencePerson==null||id===state.evidencePerson));
+      markup=markup.replace('<p class="source-basis">',`<p class="connection-participants">Участь у відео: <strong>${people.map(id=>esc(personName(id))).join(' · ')}</strong></p><p class="source-basis">`);
+    }
+    if(!evidence||!v.rating)return markup;
     const basis=v.rating.basis||[],personId=state.selection?.id?.startsWith('person_')?Number(state.selection.id.slice(7)):null;
     const personal=(v.person_topics||[]).filter(p=>p.person_id===personId&&(!state.selection.topics?.length||state.selection.topics.includes(p.topic_id)));
     const notes=`<details class="rating-components"><summary>Теми та спікери</summary><p>${basis.length?basis.slice(0,4).map(b=>esc(b.name)).join(' · '):'Тематичних відомостей недостатньо.'}</p>${personId!=null?(personal.length?personal.map(p=>`<p>${esc(topicName(p.topic_id))}: ${p.basis==='explicit'?'зв’язок із темою зазначено в тексті':'ймовірний спікер'}${p.text?` — «${esc(p.text)}»`:''}</p>`).join(''):'<p>Участь у відео відома, але обговорення цих тем не підтверджено.</p>'):''}</details>`;
@@ -237,6 +303,10 @@
       const persons=$('#ratingEntity').value==='people';$('#ratingTopicField').hidden=!persons;
       if(persons){const ids=new Set(state.videos.flatMap(v=>v.people));records=Core.buildPeopleRating(state.data,{topic:$('#ratingTopic').value}).filter(p=>ids.has(p.id));}
       else {const channels=new Set(state.videos.map(v=>v.channel_id));records=Core.buildRating(state.data).filter(c=>channels.has(c.id));}
+    }
+    else if(state.view==='topics'){
+      const videos=new Map(state.videos.map(v=>[v.id,v]));
+      records=state.discoveryIndex.options('topic',{videoIds:new Set(videos.keys()),titleOnly:state.titleOnly}).filter(e=>e.kind==='topic'&&(state.category==='all'||e.category===state.category)).map(e=>({...e,matching:[...e.matches].filter(([id,r])=>videos.has(id)&&(!state.titleOnly||r.basis==='title')).map(([id])=>videos.get(id))}));
     }
     else{
       const field={channels:'channel_id',topics:'topics',people:'people'}[state.view];
@@ -253,7 +323,8 @@
       const topicIds=[...new Set(item.matching.flatMap(v=>v.topics))],channelCount=new Set(item.matching.map(v=>v.channel_id)).size;
       const img=state.view==='channels'?safeImage(item.thumbnail):null;
       const category=state.data.categories.find(c=>c.id===item.category);
-      return `<article class="entity-card glass"><div class="entity-top"><div class="entity-avatar ${kind}">${esc(name.split(/\s+/).slice(0,2).map(s=>s[0]).join(''))}${img?`<img src="${esc(img)}" alt="" loading="lazy" width="60" height="60">`:''}</div><span class="card-kicker">${esc(category?.name||({channel:'YouTube-канал',person:'Учасник відео',topic:'Тема'})[kind])}</span></div><h2>${esc(name)}</h2><p class="entity-counts">${item.matching.length} відео · ${kind==='channel'?topicIds.length+' тем':channelCount+' каналів'}</p><div class="card-topics">${topicIds.filter(id=>kind!=='topic'||id!==item.id).slice(0,3).map(id=>`<button type="button" data-entity="topic_${id}">${esc(topicName(id))}</button>`).join('')}</div><button type="button" class="entity-open" data-entity="${kind}_${item.id}">Переглянути відео <span>↗</span></button></article>`;
+      const openAttributes=kind==='topic'?`data-discovery-kind="topic" data-discovery-id="${item.id}"`:`data-entity="${kind}_${item.id}"`;
+      return `<article class="entity-card glass"><div class="entity-top"><div class="entity-avatar ${kind}">${esc(name.split(/\s+/).slice(0,2).map(s=>s[0]).join(''))}${img?`<img src="${esc(img)}" alt="" loading="lazy" width="60" height="60">`:''}</div><span class="card-kicker">${esc(category?.name||({channel:'YouTube-канал',person:'Учасник відео',topic:'Тема'})[kind])}</span></div><h2>${esc(name)}</h2><p class="entity-counts">${item.matching.length} відео · ${kind==='channel'?topicIds.length+' тем':channelCount+' каналів'}</p><div class="card-topics">${topicIds.filter(id=>kind!=='topic'||id!==item.id).slice(0,3).map(id=>`<button type="button" data-entity="topic_${id}">${esc(topicName(id))}</button>`).join('')}</div><button type="button" class="entity-open" ${openAttributes}>Переглянути відео <span>↗</span></button></article>`;
     }).join('')||'<div class="catalog-empty glass"><h2>За цими фільтрами нічого не знайдено</h2><p>Змініть пошук, канал або категорію.</p></div>';
     $('#pageInfo').textContent=records.length?`${start+1}–${Math.min(start+pageSize,records.length)} із ${records.length}`:'Знайдено: 0';$('#prevPage').disabled=state.page===0;$('#nextPage').disabled=start+pageSize>=records.length;
   }
@@ -295,17 +366,20 @@
   }
   function openEvidence(selection){
     state.selection=selection;
-    state.evidenceTopic=null;state.evidenceLimit=selection.relation==='shared_topics'?6:12;
+    state.evidenceTopic=null;state.evidencePerson=null;state.evidenceLimit=['shared_topics','shared_people'].includes(selection.relation)?6:12;
     const byId=new Map(state.graphData.nodes.map(n=>[n.id,n.label]));
     $('#evidenceTitle').textContent=selection.label||`${byId.get(Core.idOf(selection.source))} ↔ ${byId.get(Core.idOf(selection.target))}`;
-    $('#evidenceNote').textContent=selection.relation==='shared_topics'?'Спільні теми не означають спільних виступів. Нижче — окремі відеоджерела кожної сторони.':'Відео, на яких ґрунтується цей зв’язок.';
-    $('#evidenceEyebrow').textContent=selection.relation==='shared_topics'?'ТЕМАТИЧНИЙ ПЕРЕТИН':'ВІДЕОДЖЕРЕЛА';
+    $('#evidenceNote').textContent=selection.relation==='shared_people'?'Ті самі люди визначені учасниками відео обох каналів. Оберіть ім’я, щоб порівняти їхні виступи. Це не обов’язково спільний ефір чи співпраця каналів.':selection.relation==='shared_topics'?'Спільні теми не означають спільних виступів. Нижче — окремі відеоджерела кожної сторони.':'Відео, на яких ґрунтується цей зв’язок.';
+    $('#evidenceEyebrow').textContent=selection.relation==='shared_people'?'КАНАЛИ · СПІЛЬНІ УЧАСНИКИ':selection.relation==='shared_topics'?'ТЕМАТИЧНИЙ ПЕРЕТИН':'ВІДЕОДЖЕРЕЛА';
     renderEvidence();if(!$('#evidenceDialog').open)$('#evidenceDialog').showModal();
   }
   function renderEvidence(){
     // Selections already contain the exact filtered video IDs. Read those IDs
     // from the catalog so an overlap retains evidence from the other channel.
-    const groups=Core.evidenceGroups(state.data,state.selection,state.data.videos,state.evidenceTopic);
+    const groups=Core.evidenceGroups(state.data,state.selection,state.data.videos,state.evidenceTopic,state.evidencePerson);
+    const people=state.selection.relation==='shared_people'?(state.selection.people||[]):[];
+    $('#evidencePeople').hidden=!people.length;
+    $('#evidencePeople').innerHTML=people.length?`<h3>Хто поєднує ці канали</h3><div class="topic-chips"><button type="button" data-evidence-person="all" aria-pressed="${state.evidencePerson==null}" class="${state.evidencePerson==null?'active':''}">Усі учасники (${people.length})</button>${people.map(id=>`<button type="button" data-evidence-person="${id}" aria-pressed="${state.evidencePerson===id}" class="${state.evidencePerson===id?'active':''}">${esc(personName(id))}</button>`).join('')}</div>`:'';
     const topics=(state.selection.topics||[]).slice(0,30);
     $('#evidenceTopics').innerHTML=topics.length>1?`<button class="${state.evidenceTopic==null?'active':''}" data-evidence-topic="all" type="button">Усі теми</button>`+topics.map(id=>`<button class="${state.evidenceTopic===id?'active':''}" type="button" data-evidence-topic="${id}">${esc(topicName(id))}</button>`).join(''):'';
     $('#evidenceVideos').innerHTML=groups.map(group=>`${group.label?`<h3 class="evidence-side">${esc(group.label)} <span>${group.videos.length} відео</span></h3>`:''}${group.videos.slice(0,state.evidenceLimit).map(v=>videoCard(v,true)).join('')||'<p class="muted">Відео за вибраною темою не знайдено.</p>'}`).join('');
@@ -323,6 +397,7 @@
   async function load(){
     $('#pageError').hidden=true;
     try{const response=await fetch('data/catalog.json',{cache:'no-cache'});if(!response.ok)throw new Error('catalog');const data=await response.json();if(data.schema!=='genealogy-public/v1')throw new Error('schema');state.data=data;
+      state.discoveryIndex=Discovery.createIndex(data);
       $('#catalogStats').innerHTML=[[data.channels.length,'каналів'],[data.videos.length,'відео'],[data.people.length,'людей'],[data.topics.length,'тем']].map(([n,label])=>`<div class="stat"><strong>${n}</strong><span>${label}</span></div>`).join('');
       $('#categorySelect').innerHTML='<option value="all">Усі категорії</option>'+data.categories.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
       $('#channelSelect').innerHTML='<option value="all">Усі канали</option>'+[...data.channels].sort((a,b)=>a.title.localeCompare(b.title,'uk')||a.id-b.id).map(c=>`<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
@@ -343,7 +418,18 @@
     let searchTimer;$('#searchInput').addEventListener('input',e=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.search=e.target.value;refresh();},200);});
     $('#categorySelect').addEventListener('change',e=>{state.category=e.target.value;refresh();});
     $('#channelSelect').addEventListener('change',e=>{state.channel=e.target.value;refresh();});
-    $('#resetFilters').addEventListener('click',()=>{clearTimeout(searchTimer);state.search='';state.category='all';state.channel='all';$('#searchInput').value='';$('#categorySelect').value='all';$('#channelSelect').value='all';refresh();});
+    $('#resetFilters').addEventListener('click',()=>{clearTimeout(searchTimer);state.search='';state.category='all';state.channel='all';state.topicSelection=null;state.placeSelection=null;state.titleOnly=false;$('#titleOnlyFilter').checked=false;$('#searchInput').value='';$('#categorySelect').value='all';$('#channelSelect').value='all';refresh();});
+    $('#topicPickerButton').addEventListener('click',()=>openDiscoveryPicker('topic'));
+    $('#placePickerButton').addEventListener('click',()=>openDiscoveryPicker('place'));
+    $('#showFilteredVideos').addEventListener('click',()=>{location.hash='videos';});
+    $('#titleOnlyFilter').addEventListener('change',event=>{state.titleOnly=event.target.checked;refresh();});
+    $('#discoveryQuery').addEventListener('input',()=>{state.pickerLimit=30;renderDiscoveryPicker();});
+    $('#moreDiscoveryOptions').addEventListener('click',()=>{state.pickerLimit+=30;renderDiscoveryPicker();});
+    document.addEventListener('click',event=>{
+      const choice=event.target.closest('[data-discovery-kind]');if(choice)chooseDiscovery(choice.dataset.discoveryKind,choice.dataset.discoveryId);
+      if(event.target.closest('[data-open-topic-picker]'))openDiscoveryPicker('topic');
+      const clear=event.target.closest('[data-clear-discovery]');if(clear){state[clear.dataset.clearDiscovery==='place'?'placeSelection':'topicSelection']=null;refresh();}
+    });
     $('#modeList').addEventListener('click',e=>{const b=e.target.closest('[data-mode]');if(!b||!state.data)return;state.mode=b.dataset.mode;$$('[data-mode]').forEach(item=>{item.classList.toggle('active',item===b);item.setAttribute('aria-pressed',String(item===b));});$('#activeModeLabel').textContent=b.textContent.replace(/^\s*\d+\s*/,'');renderMap();setPanel('options',false);});
     $('#optionsToggle').addEventListener('click',()=>setPanel('options',$('#graphOptions').hidden));
     $('#connectionsToggle').addEventListener('click',()=>setPanel('connections',$('#connectionsPanel').hidden));
@@ -366,6 +452,7 @@
     $('#nextPage').addEventListener('click',()=>{state.page++;renderCatalog();$('#catalogView').scrollIntoView({block:'start'});});
     document.addEventListener('click',e=>{const play=e.target.closest('[data-play]');if(play)playVideo(play.dataset.play,play.dataset.start);const entity=e.target.closest('[data-entity]');if(entity)openEntity(entity.dataset.entity);});
     $('#evidenceTopics').addEventListener('click',e=>{const b=e.target.closest('[data-evidence-topic]');if(!b)return;state.evidenceTopic=b.dataset.evidenceTopic==='all'?null:Number(b.dataset.evidenceTopic);state.evidenceLimit=12;renderEvidence();});
+    $('#evidencePeople').addEventListener('click',e=>{const b=e.target.closest('[data-evidence-person]');if(!b)return;state.evidencePerson=b.dataset.evidencePerson==='all'?null:Number(b.dataset.evidencePerson);state.evidenceLimit=6;renderEvidence();$('#evidencePeople').querySelector(`[data-evidence-person="${state.evidencePerson??'all'}"]`)?.focus({preventScroll:true});});
     $('#moreEvidence').addEventListener('click',()=>{state.evidenceLimit+=12;renderEvidence();});
     $('#playerDialog').addEventListener('close',()=>{if(!$('#playerDialog').open){$('#playerContainer').replaceChildren();music.setDucked(false).catch(()=>{});}});
     $('#soundToggle').addEventListener('click',async()=>{try{const enabled=await music.toggle();$('#soundToggle').setAttribute('aria-pressed',String(enabled));$('#soundToggle').setAttribute('aria-label',enabled?'Вимкнути космічну музику':'Увімкнути космічну музику');$('#soundToggle span').textContent=enabled?'Космічний звук':'Звук вимкнено';$('#volumeControl').hidden=!enabled;}catch(_){$('#soundToggle span').textContent='Звук недоступний';}});

@@ -29,7 +29,7 @@
     const labels = new Map([...data.channels.map(c=>[nodeId('channel',c.id),c.title]), ...data.people.map(p=>[nodeId('person',p.id),p.name]), ...data.topics.map(t=>[nodeId('topic',t.id),t.name])]);
     const thumbnails = new Map(data.channels.filter(c=>c.thumbnail).map(c=>[nodeId('channel',c.id),c.thumbnail]));
     const nodes = new Map(), links = new Map(), topicEntities = new Map(), personChannels = new Map();
-    function addNode(id, video) { if (!nodes.has(id)) nodes.set(id,{id,type:id.split('_')[0],label:labels.get(id)||id,...(thumbnails.has(id)?{thumbnail:thumbnails.get(id)}:{}),videos:new Set()}); nodes.get(id).videos.add(video.id); }
+    function addNode(id, video) { if (!nodes.has(id)) nodes.set(id,{id,type:id.split('_')[0],label:labels.get(id)||id,...(thumbnails.has(id)?{thumbnail:thumbnails.get(id)}:{}),videos:new Set()}); if(video)nodes.get(id).videos.add(video.id); }
     function addLink(a,b,ids,topics=[],relation='together') {
       const [source,target]=[a,b].sort(), key=`${source}:${target}`;
       if(!links.has(key)) links.set(key,{id:key,source,target,relation,videos:new Set(),topics:new Set()});
@@ -57,6 +57,13 @@
       if(mode==='people') pairs(ps,(a,b)=>addLink(a,b,[v.id],relevantTopics));
       if(mode==='topic_topic') pairs(ts,(a,b)=>addLink(a,b,[v.id],[Number(a.split('_')[1]),Number(b.split('_')[1])]));
     }
+    if(mode==='channel_person')for(const channel of data.channels){
+      const c=nodeId('channel',channel.id);if(!nodes.has(c))continue;
+      for(const author of channel.authors||[]){
+        const p=nodeId('person',author.person_id);labels.set(p,author.name);addNode(p);
+        const link=addLink(c,p,[]);link.relation='channel_author';link.authorship=true;
+      }
+    }
     for(const [topic,entities] of topicEntities) pairs([...entities.keys()],(a,b)=>addLink(a,b,[...entities.get(a),...entities.get(b)],[topic],'shared_topics'));
     // v.people contains admitted participant IDs, never mention-only relations.
     // Repeated appearances add evidence, not extra people to the edge weight.
@@ -64,7 +71,7 @@
       const link=addLink(a,b,[...channels.get(a),...channels.get(b)],[],'shared_people');
       (link.people??=new Set()).add(person);
     });
-    const ranked=[...links.values()].map(l=>({...l,weight:l.relation==='shared_people'?l.people.size:l.relation==='shared_topics'?l.topics.size:l.videos.size,videos:[...l.videos],topics:[...l.topics],...(l.people?{people:[...l.people].sort((a,b)=>a-b)}:{})})).filter(l=>l.weight>=minWeight&&(!selectedChannel||!crossChannel||l.source===selectedChannel||l.target===selectedChannel)).sort((a,b)=>b.weight-a.weight||a.id.localeCompare(b.id));
+    const ranked=[...links.values()].map(l=>({...l,weight:l.relation==='channel_author'?Math.max(1,l.videos.size):l.relation==='shared_people'?l.people.size:l.relation==='shared_topics'?l.topics.size:l.videos.size,videos:[...l.videos],topics:[...l.topics],...(l.people?{people:[...l.people].sort((a,b)=>a-b)}:{})})).filter(l=>l.weight>=minWeight&&(!selectedChannel||!crossChannel||l.source===selectedChannel||l.target===selectedChannel)).sort((a,b)=>b.weight-a.weight||a.id.localeCompare(b.id));
     const scores=new Map();ranked.forEach(l=>[l.source,l.target].forEach(id=>scores.set(id,(scores.get(id)||0)+l.weight)));
     const selected=new Set([...scores].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,maxNodes).map(([id])=>id));
     const finalLinks=ranked.filter(l=>selected.has(l.source)&&selected.has(l.target)).slice(0,maxEdges);

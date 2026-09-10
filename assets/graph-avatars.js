@@ -24,11 +24,15 @@ export function createChannelAvatars({
   makeCanvas = () => document.createElement('canvas'),
   makeImage = () => new Image(),
 } = {}) {
+  // Force-graph binds scene objects to node OBJECTS, not channel IDs. A mode
+  // change creates cloned nodes before removing old ones: sharing their sprite
+  // would remove it from the new scene and delete the new node's binding.
+  // Keep GPU objects per render-node owner; only downloaded photos are shared.
   const records = new Map(), images = new Map(), size = 256;
   let disposed = false, focusId = null, relatedIds = new Set();
 
   function draw(record) {
-    if (disposed || records.get(record.id) !== record) return;
+    if (disposed || records.get(record.node) !== record) return;
     const ctx = record.context, photo = images.get(record.url);
     ctx.clearRect(0, 0, size, size);
     ctx.save();
@@ -75,7 +79,7 @@ export function createChannelAvatars({
   function nodeObject(node) {
     if (disposed || node?.type !== 'channel') return undefined;
     const label = node.label || '', url = safeAvatarUrl(node.thumbnail);
-    let record = records.get(node.id);
+    let record = records.get(node);
     if (!record) {
       const canvas = makeCanvas(); canvas.width = canvas.height = size;
       const context = canvas.getContext('2d');
@@ -90,7 +94,7 @@ export function createChannelAvatars({
         for (const hit of hits) if (hit.uv && (hit.uv.x - .5) ** 2 + (hit.uv.y - .5) ** 2 <= (.5 - 4 / size) ** 2) intersections.push(hit);
       };
       record = {id:node.id, node, label, url, context, texture, material, sprite};
-      records.set(node.id, record); imageFor(url); draw(record);
+      records.set(node, record); imageFor(url); draw(record);
     } else if (record.url !== url || record.label !== label) {
       record.url = url; record.label = label; imageFor(url); draw(record);
     }
@@ -105,8 +109,8 @@ export function createChannelAvatars({
 
   function sync(nodes) {
     if (disposed) return;
-    const wanted = new Set(nodes.filter(n => n.type === 'channel').map(n => n.id));
-    for (const [id, record] of records) if (!wanted.has(id)) { release(record); records.delete(id); }
+    const wanted = new Set(nodes.filter(n => n.type === 'channel'));
+    for (const [node, record] of records) if (!wanted.has(node)) { release(record); records.delete(node); }
     for (const node of nodes) if (node.type === 'channel') nodeObject(node);
     // Reuse downloaded photos across filters without an unbounded image cache.
     const activeUrls = new Set([...records.values()].map(record => record.url));

@@ -1,13 +1,13 @@
 {
   "schema": "genealogy-public/v1",
-  "fingerprint": "968a4b9522c3ef1751bd1d7caf28096260d1a29ea282fe5999eea0c5546d75fa",
-  "built_at": "2026-09-10T14:22:42.516713+00:00",
-  "updated_at": "2026-09-09T20:54:47.632468+00:00",
+  "fingerprint": "4a7430de1e4bd0613b9bf820b3868beaa5f18cb1346c3926f68e56e8991b70b3",
+  "built_at": "2026-09-10T20:09:37.076695+00:00",
+  "updated_at": "2026-09-10T20:07:59.498242+00:00",
   "counts": {
-    "channels": 73,
-    "videos": 2281,
-    "people": 570,
-    "topics": 4030,
-    "places": 1480
+    "channels": 83,
+    "videos": 2332,
+    "people": 579,
+    "topics": 4181,
+    "places": 1549
   }
 }

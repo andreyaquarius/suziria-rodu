@@ -9,7 +9,7 @@
   const colors=Core.graphColors;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   modeHelp.channel_connections='Канали з’єднані через людей, які беруть участь у відео обох каналів. Товщина лінії — кількість спільних учасників. Натисніть зв’язок, щоб побачити імена та відео.';
-  function linkWeightLabel(link){return `${link.weight} ${link.relation==='shared_people'?'спільних учасників':link.relation==='shared_topics'?'спільних тем':'відео'}`;}
+  function linkWeightLabel(link){return link.relation==='channel_author'?'Автор каналу':`${link.weight} ${link.relation==='shared_people'?'спільних учасників':link.relation==='shared_topics'?'спільних тем':'відео'}`;}
   function personName(id){return state.data.people.find(p=>p.id===id)?.name||'';}
   Object.assign(state,{discoveryIndex:null,topicSelection:null,placeSelection:null,titleOnly:false,discoveryMatches:null,matchingVideoIds:null,pickerKind:'topic',pickerLimit:30});
   function updateDiscoveryFilters(){
@@ -245,10 +245,12 @@
     $('#graphCount').textContent=`${g.nodes.length} вузлів · ${g.links.length} зв’язків${g.truncated?' · показано найсильніші':''}`;
     if(state.graph){
       state.dynamics.hold(2100);
-      state.avatars?.sync(g.nodes);
+      const renderData={nodes:g.nodes.map(n=>({...n})),links:g.links.map(l=>({...l}))};
+      // Avatars must belong to the exact nodes bound by the 3D renderer.
+      state.avatars?.sync(renderData.nodes);
       // Layout new data synchronously only when motion is explicitly paused.
       state.graph.nodeResolution(g.nodes.length>1500?8:g.nodes.length>500?12:18)
-        .warmupTicks(state.paused?100:0).graphData({nodes:g.nodes.map(n=>({...n})),links:g.links.map(l=>({...l}))});
+        .warmupTicks(state.paused?100:0).graphData(renderData);
       $('#graphMessage').hidden=g.nodes.length>0;$('#graphMessage').textContent=channelOverlap?'За цими фільтрами канал не має перетинів. Спробуйте режим «Канал ↔ тема» або «Канал ↔ людина».':'Немає зв’язків за цими фільтрами. Спробуйте інший канал, категорію або меншу щільність.';styleGraphSelection();resizeGraph();labels();state.fitTimer=setTimeout(()=>{if(!state.focusNode&&state.view==='map')state.graph.zoomToFit(state.paused?0:900,60);},850);
     }
     renderConnections();
@@ -336,6 +338,10 @@
     const c=item.components||{},number=n=>Number(n||0).toLocaleString('uk',{maximumFractionDigits:2});
     return `<details class="rating-components"><summary>За що бали</summary><p>Тематика: ${number(c.thematic)} балів · Джерела й методи: ${number(c.research)} балів</p></details>`;
   }
+  function channelAuthors(id){
+    const authors=state.data.channels.find(c=>c.id===Number(id))?.authors||[];
+    return authors.length?`<p class="channel-authors">${authors.length===1?'Автор каналу':'Автори каналу'}: ${authors.map(a=>`<button class="title-button" type="button" data-entity="person_${Number(a.person_id)}">${esc(a.name)}</button>`).join(', ')}</p>`:'';
+  }
   function ratingVideoCounts(item){
     const counts={all:item.videos.length,genealogy:item.genealogy_videos,local_history:item.local_history_videos,history:item.history_videos};
     return `<div class="rating-video-counts" role="group" aria-label="Відео каналу за напрямами">${Object.entries(Core.ratingSubjects).map(([subject,name])=>{
@@ -346,7 +352,7 @@
   function ratingCard(item){
     if(item.entity_type==='person')return `<article class="rating-row glass"><span class="rating-position" aria-label="Місце ${item.rank}">${item.rank}</span><div class="entity-avatar person">${esc(item.title.split(/\s+/).slice(0,2).map(s=>s[0]).join(''))}</div><div class="rating-channel"><h2>${esc(item.title)}</h2><p>Тематичні виступи: ${item.videos.length} · Канали участі: ${item.channel_count}</p><div class="card-topics">${item.top_topics.map(t=>`<button type="button" data-rating-topic="${t.topic_id}">${esc(topicName(t.topic_id))}</button>`).join('')}</div>${ratingComponents(item)}</div><div class="rating-score"><strong>${Number(item.score).toLocaleString('uk',{maximumFractionDigits:2})}</strong><span>балів</span></div><button class="quiet-button rating-videos" type="button" data-rating-person="${item.id}">${item.videos.length?'Виступи':'Відео участі'} ↗</button></article>`;
     const img=safeImage(item.thumbnail),initials=item.title.split(/\s+/).slice(0,2).map(s=>s[0]).join('');
-    return `<article class="rating-row glass"><span class="rating-position" aria-label="Місце ${item.rank}">${String(item.rank).padStart(2,'0')}</span><div class="entity-avatar channel">${esc(initials)}${img?`<img src="${esc(img)}" alt="" loading="lazy" width="60" height="60">`:''}</div><div class="rating-channel"><h2><button class="title-button" type="button" data-rating-channel="${item.id}" data-rating-subject="all" aria-haspopup="dialog">${esc(item.title)}</button></h2>${ratingVideoCounts(item)}${ratingComponents(item)}</div><div class="rating-score"><strong>${Number(item.score).toLocaleString('uk',{maximumFractionDigits:2})}</strong><span>балів</span></div><button class="quiet-button rating-videos" type="button" data-rating-channel="${item.id}" data-rating-subject="all" aria-haspopup="dialog">Відеоджерела ↗</button></article>`;
+    return `<article class="rating-row glass"><span class="rating-position" aria-label="Місце ${item.rank}">${String(item.rank).padStart(2,'0')}</span><div class="entity-avatar channel">${esc(initials)}${img?`<img src="${esc(img)}" alt="" loading="lazy" width="60" height="60">`:''}</div><div class="rating-channel"><h2><button class="title-button" type="button" data-rating-channel="${item.id}" data-rating-subject="all" aria-haspopup="dialog">${esc(item.title)}</button></h2>${channelAuthors(item.id)}${ratingVideoCounts(item)}${ratingComponents(item)}</div><div class="rating-score"><strong>${Number(item.score).toLocaleString('uk',{maximumFractionDigits:2})}</strong><span>балів</span></div><button class="quiet-button rating-videos" type="button" data-rating-channel="${item.id}" data-rating-subject="all" aria-haspopup="dialog">Відеоджерела ↗</button></article>`;
   }
   function openRatingChannel(id,subject='all'){
     const channel=state.data.channels.find(c=>c.id===Number(id));if(!channel||!Object.hasOwn(Core.ratingSubjects,subject))return;
@@ -367,6 +373,10 @@
     const field={channel:'channel_id',person:'people',topic:'topics'}[kind];
     const videos=state.videos.filter(v=>Array.isArray(v[field])?v[field].includes(entityId):v[field]===entityId);
     openEvidence({id,label:entity.title||entity.name,videos:videos.map(v=>v.id),topics:kind==='topic'?[entityId]:[...new Set(videos.flatMap(v=>v.topics))]});
+    if(kind==='person'&&entity.authored_channels?.length){
+      const names=entity.authored_channels.map(id=>state.data.channels.find(c=>c.id===id)?.title).filter(Boolean);
+      $('#evidenceNote').textContent=`Автор каналу: ${names.join(', ')}. У списку нижче — лише підтверджена участь у відео за поточними фільтрами.`;
+    }
   }
   function openEvidence(selection){
     state.selection=selection;
@@ -375,6 +385,10 @@
     $('#evidenceTitle').textContent=selection.label||`${byId.get(Core.idOf(selection.source))} ↔ ${byId.get(Core.idOf(selection.target))}`;
     $('#evidenceNote').textContent=selection.relation==='shared_people'?'Ті самі люди визначені учасниками відео обох каналів. Оберіть ім’я, щоб порівняти їхні виступи. Це не обов’язково спільний ефір чи співпраця каналів.':selection.relation==='shared_topics'?'Спільні теми не означають спільних виступів. Нижче — окремі відеоджерела кожної сторони.':'Відео, на яких ґрунтується цей зв’язок.';
     $('#evidenceEyebrow').textContent=selection.relation==='shared_people'?'КАНАЛИ · СПІЛЬНІ УЧАСНИКИ':selection.relation==='shared_topics'?'ТЕМАТИЧНИЙ ПЕРЕТИН':'ВІДЕОДЖЕРЕЛА';
+    if(selection.relation==='channel_author'){
+      $('#evidenceEyebrow').textContent='АВТОР КАНАЛУ';
+      $('#evidenceNote').textContent='Авторство каналу підтверджено вручну. Участь у конкретних відео визначається окремо.';
+    }
     renderEvidence();if(!$('#evidenceDialog').open)$('#evidenceDialog').showModal();
   }
   function renderEvidence(){
@@ -386,7 +400,7 @@
     $('#evidencePeople').innerHTML=people.length?`<h3>Хто поєднує ці канали</h3><div class="topic-chips"><button type="button" data-evidence-person="all" aria-pressed="${state.evidencePerson==null}" class="${state.evidencePerson==null?'active':''}">Усі учасники (${people.length})</button>${people.map(id=>`<button type="button" data-evidence-person="${id}" aria-pressed="${state.evidencePerson===id}" class="${state.evidencePerson===id?'active':''}">${esc(personName(id))}</button>`).join('')}</div>`:'';
     const topics=(state.selection.topics||[]).slice(0,30);
     $('#evidenceTopics').innerHTML=topics.length>1?`<button class="${state.evidenceTopic==null?'active':''}" data-evidence-topic="all" type="button">Усі теми</button>`+topics.map(id=>`<button class="${state.evidenceTopic===id?'active':''}" type="button" data-evidence-topic="${id}">${esc(topicName(id))}</button>`).join(''):'';
-    $('#evidenceVideos').innerHTML=groups.map(group=>`${group.label?`<h3 class="evidence-side">${esc(group.label)} <span>${group.videos.length} відео</span></h3>`:''}${group.videos.slice(0,state.evidenceLimit).map(v=>videoCard(v,true)).join('')||'<p class="muted">Відео за вибраною темою не знайдено.</p>'}`).join('');
+    $('#evidenceVideos').innerHTML=groups.map(group=>`${group.label?`<h3 class="evidence-side">${esc(group.label)} <span>${group.videos.length} відео</span></h3>`:''}${group.videos.slice(0,state.evidenceLimit).map(v=>videoCard(v,true)).join('')||`<p class="muted">${state.selection.relation==='channel_author'?'У вибраних відео участь автора поки не підтверджена.':'Відео за вибраними фільтрами не знайдено.'}</p>`}`).join('');
     const remaining=groups.reduce((sum,group)=>sum+Math.max(0,group.videos.length-state.evidenceLimit),0);
     $('#moreEvidence').hidden=remaining===0;$('#moreEvidence').textContent=`Показати ще (${remaining})`;
   }
@@ -412,7 +426,15 @@
       changeView();
     }catch(_){$('#pageError').hidden=false;$('#graphMessage').textContent='Каталог тимчасово недоступний.';}
   }
+  function initLocalAdminLink(){
+    const link=$('#localAdminLink');
+    if(!link || !['127.0.0.1','localhost','[::1]'].includes(location.hostname))return;
+    if(!['http:','https:'].includes(location.protocol))return;
+    link.href=location.port==='8001'?'/admin#controls':'http://127.0.0.1:8001/admin#controls';
+    link.hidden=false;
+  }
   document.addEventListener('DOMContentLoaded',()=>{
+    initLocalAdminLink();
     observeResponsiveLayout();
     initGraph();changeView();load();
     window.addEventListener('hashchange',changeView);

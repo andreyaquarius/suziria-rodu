@@ -16,6 +16,9 @@
 !/assets/site.js
 !/assets/analytics.js
 !/assets/graph-core.js
+!/assets/graph-avatars.js
+!/assets/three.core.min.js
+!/assets/three.LICENSE.txt
 !/assets/topic-discovery.js
 !/assets/cosmic-audio.js
 !/assets/cosmic-motion.js

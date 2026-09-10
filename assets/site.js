@@ -88,6 +88,7 @@
   function initGraph(){
     try{
       if(!window.ForceGraph3D) throw new Error('WebGL unavailable');
+      state.avatars=window.ChannelAvatars?.create({nodeValue:Core.graphNodeValue});
       // Use the same TrackballControls as /admin. OrbitControls in this bundled
       // renderer fails on the synthetic pointerup used by node-drag cleanup.
       state.graph=window.ForceGraph3D({controlType:'trackball'})($('#cosmicGraph'))
@@ -101,6 +102,7 @@
         .onNodeClick(selectGraphNode)
         .onLinkClick(l=>{if(state.dynamics.canSelect())openEvidence(l);})
         .onBackgroundClick(()=>{if(state.dynamics.canSelect())clearNodeFocus();});
+      if(state.avatars)state.graph.nodeThreeObject(state.avatars.nodeObject).nodeThreeObjectExtend(false);
       state.dynamics=Core.createGraphDynamics(state.graph,{
         onNavigateStart(){clearTimeout(state.fitTimer);},
         onDragStart(){clearTimeout(state.fitTimer);$('#graphStage').classList.add('is-dragging');},
@@ -113,6 +115,7 @@
   function resizeGraph(){if(!state.graph||state.view!=='map')return;const el=$('#graphStage');state.graph.width(el.clientWidth).height(el.clientHeight);}
   function styleGraphSelection(){
     if(!state.graph)return;
+    state.avatars?.setSelection(state.focusNode?.id,state.focusIds);
     // Limit decorative particles on large maps, never their nodes or links.
     const stride=Math.max(1,Math.ceil(state.graphData.links.length/500));
     const animated=new Set(state.graphData.links.filter((_,index)=>index%stride===0).map(link=>link.id));
@@ -242,6 +245,7 @@
     $('#graphCount').textContent=`${g.nodes.length} вузлів · ${g.links.length} зв’язків${g.truncated?' · показано найсильніші':''}`;
     if(state.graph){
       state.dynamics.hold(2100);
+      state.avatars?.sync(g.nodes);
       // Layout new data synchronously only when motion is explicitly paused.
       state.graph.nodeResolution(g.nodes.length>1500?8:g.nodes.length>500?12:18)
         .warmupTicks(state.paused?100:0).graphData({nodes:g.nodes.map(n=>({...n})),links:g.links.map(l=>({...l}))});
@@ -459,7 +463,7 @@
     $('#musicVolume').addEventListener('input',e=>music.setVolume(Number(e.target.value)/100));
     document.addEventListener('error',e=>{if(e.target instanceof HTMLImageElement)e.target.hidden=true;},true);
     document.addEventListener('visibilitychange',()=>{music.setHidden(document.hidden).catch(()=>{});if(!state.graph)return;renderMotion();if(!document.hidden&&!state.labelFrame)labels();});
-    window.addEventListener('pagehide',event=>{music.dispose().catch(()=>{});if(event.persisted)state.dynamics?.setState({paused:state.paused,visible:false});else state.dynamics?.dispose();});
+    window.addEventListener('pagehide',event=>{music.dispose().catch(()=>{});if(event.persisted)state.dynamics?.setState({paused:state.paused,visible:false});else{state.dynamics?.dispose();state.avatars?.dispose();}});
     window.addEventListener('pageshow',event=>{if(event.persisted&&state.graph){renderMotion();labels();}});
     window.addEventListener('pageshow',e=>{if(e.persisted){$('#soundToggle').setAttribute('aria-pressed','false');$('#soundToggle').setAttribute('aria-label','Увімкнути космічну музику');$('#soundToggle span').textContent='Звук вимкнено';$('#volumeControl').hidden=true;}});
   });

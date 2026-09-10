@@ -27,8 +27,9 @@
     if(selectedChannel&&!crossChannel)videos=videos.filter(v=>String(v.channel_id)===String(channel));
     const categoryTopics=new Set(data.topics.filter(t=>category==='all'||t.category===category).map(t=>t.id));
     const labels = new Map([...data.channels.map(c=>[nodeId('channel',c.id),c.title]), ...data.people.map(p=>[nodeId('person',p.id),p.name]), ...data.topics.map(t=>[nodeId('topic',t.id),t.name])]);
+    const thumbnails = new Map(data.channels.filter(c=>c.thumbnail).map(c=>[nodeId('channel',c.id),c.thumbnail]));
     const nodes = new Map(), links = new Map(), topicEntities = new Map(), personChannels = new Map();
-    function addNode(id, video) { if (!nodes.has(id)) nodes.set(id,{id,type:id.split('_')[0],label:labels.get(id)||id,videos:new Set()}); nodes.get(id).videos.add(video.id); }
+    function addNode(id, video) { if (!nodes.has(id)) nodes.set(id,{id,type:id.split('_')[0],label:labels.get(id)||id,...(thumbnails.has(id)?{thumbnail:thumbnails.get(id)}:{}),videos:new Set()}); nodes.get(id).videos.add(video.id); }
     function addLink(a,b,ids,topics=[],relation='together') {
       const [source,target]=[a,b].sort(), key=`${source}:${target}`;
       if(!links.has(key)) links.set(key,{id:key,source,target,relation,videos:new Set(),topics:new Set()});

@@ -481,12 +481,13 @@
     $('#evidencePeople').addEventListener('click',e=>{const b=e.target.closest('[data-evidence-person]');if(!b)return;state.evidencePerson=b.dataset.evidencePerson==='all'?null:Number(b.dataset.evidencePerson);state.evidenceLimit=6;renderEvidence();$('#evidencePeople').querySelector(`[data-evidence-person="${state.evidencePerson??'all'}"]`)?.focus({preventScroll:true});});
     $('#moreEvidence').addEventListener('click',()=>{state.evidenceLimit+=12;renderEvidence();});
     $('#playerDialog').addEventListener('close',()=>{if(!$('#playerDialog').open){$('#playerContainer').replaceChildren();music.setDucked(false).catch(()=>{});}});
-    $('#soundToggle').addEventListener('click',async()=>{try{const enabled=await music.toggle();$('#soundToggle').setAttribute('aria-pressed',String(enabled));$('#soundToggle').setAttribute('aria-label',enabled?'Вимкнути космічну музику':'Увімкнути космічну музику');$('#soundToggle span').textContent=enabled?'Космічний звук':'Звук вимкнено';$('#volumeControl').hidden=!enabled;}catch(_){$('#soundToggle span').textContent='Звук недоступний';}});
-    $('#musicVolume').addEventListener('input',e=>music.setVolume(Number(e.target.value)/100));
+    let musicStorage;try{musicStorage=window.localStorage;}catch(_){}
+    new window.CosmicMusicControls(music,document,musicStorage);
+    music.setHidden(document.hidden).catch(()=>{});
     document.addEventListener('error',e=>{if(e.target instanceof HTMLImageElement)e.target.hidden=true;},true);
     document.addEventListener('visibilitychange',()=>{music.setHidden(document.hidden).catch(()=>{});if(!state.graph)return;renderMotion();if(!document.hidden&&!state.labelFrame)labels();});
     window.addEventListener('pagehide',event=>{music.dispose().catch(()=>{});if(event.persisted)state.dynamics?.setState({paused:state.paused,visible:false});else{state.dynamics?.dispose();state.avatars?.dispose();}});
     window.addEventListener('pageshow',event=>{if(event.persisted&&state.graph){renderMotion();labels();}});
-    window.addEventListener('pageshow',e=>{if(e.persisted){$('#soundToggle').setAttribute('aria-pressed','false');$('#soundToggle').setAttribute('aria-label','Увімкнути космічну музику');$('#soundToggle span').textContent='Звук вимкнено';$('#volumeControl').hidden=true;}});
+    window.addEventListener('pageshow',e=>{if(e.persisted)music.setHidden(document.hidden).catch(()=>{});});
   });
 })();

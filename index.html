@@ -10,7 +10,7 @@
   <link rel="canonical" href="https://suziria.trekerrodu.com.ua/">
   <title>Сузір’я роду — Український генеалогічний YouTube</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/site.css?v=24">
+  <link rel="stylesheet" href="assets/site.css?v=25">
 </head>
 <body class="view-map">
   <a class="skip-link" href="#main">Перейти до вмісту</a>
@@ -27,7 +27,23 @@
       <a href="#videos" data-view="videos">Відео</a>
     </nav>
     <a id="localAdminLink" class="quiet-button" hidden>Керування сайтом ↗</a>
-    <div class="sound-controls"><button id="soundToggle" class="quiet-button" type="button" aria-pressed="false" aria-label="Увімкнути космічну музику">♫ <span>Звук вимкнено</span></button><label id="volumeControl" hidden><span class="sr-only">Гучність музики</span><input id="musicVolume" type="range" min="0" max="100" value="28" aria-label="Гучність музики"></label></div>
+    <details id="musicMenu" class="sound-controls">
+      <summary class="quiet-button" aria-label="Налаштування музики">♫ <span>Музика</span><i id="musicIndicator" aria-hidden="true"></i></summary>
+      <div class="sound-panel">
+        <label for="musicTrack">Фонова музика</label>
+        <select id="musicTrack" aria-describedby="musicDescription">
+          <option value="cosmic">Сузір’я</option>
+          <option value="memories">Теплі спогади</option>
+          <option value="starlight">Зоряні дзвіночки</option>
+          <option value="deep-space">Глибокий космос</option>
+          <option value="strings">Струни роду</option>
+        </select>
+        <p id="musicDescription">Знайомий космічний фон: повільні акорди й легке відлуння.</p>
+        <button id="soundToggle" class="primary-button" type="button" aria-pressed="false" aria-label="Увімкнути фонову музику">▶ Увімкнути музику</button>
+        <label id="volumeControl" for="musicVolume">Гучність <output id="musicVolumeValue" for="musicVolume">28%</output><input id="musicVolume" type="range" min="0" max="100" value="28" aria-label="Гучність музики"></label>
+        <p id="musicPlaybackStatus" role="status">Звук вимкнено</p>
+      </div>
+    </details>
   </header>
   <main id="main">
     <section class="intro">
@@ -117,15 +133,15 @@
   <dialog id="discoveryDialog" class="discovery-dialog" aria-labelledby="discoveryTitle"><div class="dialog-header"><h2 id="discoveryTitle">Оберіть тему</h2><button class="round-button" data-close="discoveryDialog" type="button" aria-label="Закрити вибір теми або місцевості">×</button></div><div class="discovery-picker-search"><label for="discoveryQuery" class="sr-only">Пошук теми або місцевості</label><input id="discoveryQuery" type="search" placeholder="ДНК, метрики, сповідки, переселення…" autocomplete="off" maxlength="150"><p id="discoveryPickerNote" class="muted"></p></div><div id="discoveryOptions" class="discovery-options" aria-live="polite"></div><div class="discovery-picker-footer"><span id="discoveryOptionCount" role="status"></span><button id="moreDiscoveryOptions" class="quiet-button" type="button">Показати ще</button></div></dialog>
   <dialog id="evidenceDialog" class="evidence-dialog" aria-labelledby="evidenceTitle"><div class="dialog-header"><div><p class="eyebrow" id="evidenceEyebrow">ВІДЕОДЖЕРЕЛА</p><h2 id="evidenceTitle"></h2></div><button class="round-button" data-close="evidenceDialog" type="button" aria-label="Закрити список відео">×</button></div><p id="evidenceNote" class="dialog-note"></p><section id="evidencePeople" class="evidence-people" aria-label="Спільні учасники" hidden></section><div id="evidenceTopics" class="topic-chips"></div><div id="evidenceVideos" class="evidence-videos" aria-live="polite"></div><button id="moreEvidence" class="quiet-button" type="button">Показати ще відео</button></dialog>
   <dialog id="playerDialog" class="player-dialog" aria-labelledby="playerTitle"><div class="dialog-header"><h2 id="playerTitle"></h2><button class="round-button" data-close="playerDialog" type="button" aria-label="Закрити програвач">×</button></div><div id="playerContainer"></div><div class="player-footer"><a id="playerExternal" target="_blank" rel="noopener noreferrer">Відкрити на YouTube ↗</a><p>Якщо автор обмежив перегляд тут, відкрийте відео на YouTube.</p></div></dialog>
-  <dialog id="aboutDialog" class="about-dialog" aria-labelledby="aboutTitle"><div class="dialog-header"><h2 id="aboutTitle">Сузір’я генеалогічних каналів</h2><button class="round-button" data-close="aboutDialog" type="button" aria-label="Закрити інформацію">×</button></div><div class="about-content"><p>Сузір’я роду — простір україномовного генеалогічного YouTube від Трекера Роду. Тут канали, дослідники й теми утворюють сузір’я зв’язків, а кожен зв’язок веде до конкретних відео.</p><p>Досліджуйте спільні теми каналів і виступи людей. Тематичний перетин не означає особистого знайомства чи співпраці. Зв’язки визначаються за доступними субтитрами й описами, тож перевіряйте їх у відеоджерелах.</p><p>У добірці — україномовні відео про генеалогію та краєзнавство. Оновлення заплановані щотижня; дату останнього оновлення видно внизу сторінки.</p><p>Відео належать їхнім авторам і відтворюються через YouTube. Космічна музика — оригінальна синтезована композиція без сторонніх записів.</p></div></dialog>
+  <dialog id="aboutDialog" class="about-dialog" aria-labelledby="aboutTitle"><div class="dialog-header"><h2 id="aboutTitle">Сузір’я генеалогічних каналів</h2><button class="round-button" data-close="aboutDialog" type="button" aria-label="Закрити інформацію">×</button></div><div class="about-content"><p>Сузір’я роду — простір україномовного генеалогічного YouTube від Трекера Роду. Тут канали, дослідники й теми утворюють сузір’я зв’язків, а кожен зв’язок веде до конкретних відео.</p><p>Досліджуйте спільні теми каналів і виступи людей. Тематичний перетин не означає особистого знайомства чи співпраці. Зв’язки визначаються за доступними субтитрами й описами, тож перевіряйте їх у відеоджерелах.</p><p>У добірці — україномовні відео про генеалогію та краєзнавство. Оновлення заплановані щотижня; дату останнього оновлення видно внизу сторінки.</p><p>Відео належать їхнім авторам і відтворюються через YouTube. Фонова музика — оригінальні синтезовані композиції без сторонніх записів.</p></div></dialog>
   <noscript><p class="error-panel">Для інтерактивної мапи та пошуку потрібно ввімкнути JavaScript.</p></noscript>
   <script src="assets/analytics.js?v=1" defer></script>
   <script src="assets/3d-force-graph.min.js" defer></script>
   <script type="module" src="assets/graph-avatars.js?v=2"></script>
   <script src="assets/graph-core.js?v=27" defer></script>
   <script src="assets/topic-discovery.js?v=1" defer></script>
-  <script src="assets/cosmic-audio.js?v=4" defer></script>
+  <script src="assets/cosmic-audio.js?v=5" defer></script>
   <script src="assets/cosmic-motion.js?v=4" defer></script>
-  <script src="assets/site.js?v=30" defer></script>
+  <script src="assets/site.js?v=31" defer></script>
 </body>
 </html>
